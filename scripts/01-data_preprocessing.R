@@ -127,8 +127,8 @@ metadata <- full_join(
       Tumor_size == 0 ~ "Tis",
       # not using pT staging, but rather Tumor_size because no infomration for pT4 are available
       Tumor_size > 0 & Tumor_size <= 20 ~ "≤ 2 cm",
-      Tumor_size > 2 & Tumor_size <= 5 ~ "> 2 - 5 cm",
-      Tumor_size > 5 ~ "> 5 cm",
+      Tumor_size > 20 & Tumor_size <= 50 ~ "> 2 - 5 cm",
+      Tumor_size > 50 ~ "> 5 cm",
       TRUE ~ "TX") %>% factor(levels = c("≤ 2 cm",  "> 2 - 5 cm", "> 5 cm", "Tis", "TX")),
     pN = case_when(
       Positive_nodes == 0 ~ "N0",
