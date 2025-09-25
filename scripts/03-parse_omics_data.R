@@ -18,7 +18,7 @@ metadata <- readRDS("data/processed/METABRIC-metadata.rds")
 scores <- fread("data/interim/GSVA/singscore_scores.tsv")
 
 # list genes of interest to be used for plots
-exp_of_int <- c("ABCC1", "SRCIN1")
+exp_of_int <- c("BAG3", "HSPB8")
 
 gene_expression <- exp %>%
   filter(external_gene_name %in% exp_of_int) %>%
@@ -57,12 +57,11 @@ metadata.scores_long <-  metadata %>%
   full_join(scores %>% gather(key="Signature", value = "GSVA", -1))
 
 # plot --------------
-ggplot(metadata.scores_long, aes(x=ABCC1_EXP, y=GSVA, group=Signature)) +
+ggplot(metadata.1, aes(x=SCMOD2, y=BAG3_EXP, color=SCMOD2)) +
   geom_point(size = 0.3) +
   stat_smooth(method="lm", linewidth =0.7) +
   stat_cor(label.x = 6.5, label.y=0.1, size = 8/.pt)+
   theme_bw(8) +
-  facet_wrap(~Signature) +
   force_panelsizes(rows = unit(4.5, "cm"), cols = unit(5.5, "cm"))
 
 ggsave("results/METABRIC/METABRIC-ABCC1_expression_and_stemness_signatures.pdf", width = 20, height = 20, unit = "cm" )
@@ -106,8 +105,8 @@ test_grid <- expand_grid(endpoint = endpoint,
                          selected_quantile = quantiles)
 
 # specify x as data for creating a partial function
-map_funciton <- partial(extract_cox_stats, data = metadata.1)
-res <- pmap_dfr(test_grid, map_funciton) %>%
+map_function <- partial(extract_cox_stats, data = metadata.1)
+res <- pmap_dfr(test_grid, map_function) %>%
   ungroup() %>%
   # highlight best quantile for each variable/endpoint combination
   mutate(best = ifelse(p.value == min(p.value), TRUE, FALSE), .by = c(variable, endpoint))
