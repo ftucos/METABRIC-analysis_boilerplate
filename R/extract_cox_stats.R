@@ -4,7 +4,7 @@ extract_cox_stats <- function(data, endpoint, variable, selected_quantile, .filt
   time_col <- paste0(endpoint, "_years")
   
   # remove patients with missing endpoint information
-  data = data %>%
+  data_filtered = data %>%
     filter(!is.na(.data[[time_col]]),
            !is.na(.data[[time_col]]))
   
@@ -12,7 +12,7 @@ extract_cox_stats <- function(data, endpoint, variable, selected_quantile, .filt
   filter_label = ""
   
   if (!is.null(.filter)) {
-    data = data %>%
+    data_filtered = data %>%
       filter(!!rlang::parse_expr(.filter))
     
     # format filter label
@@ -21,11 +21,11 @@ extract_cox_stats <- function(data, endpoint, variable, selected_quantile, .filt
       str_replace("\\s*!=\\s*", ": not ") %>%
       str_remove_all('(\\"|c\\(|\\))') %>%
       str_remove_all("\\'")
-  }
+  } 
   
-  # estimate best cutpoint
+  # estimate best cutpoint (best quantile is estimated on the filtered data)
   if(selected_quantile == "best") {
-    cutpoint <- surv_cutpoint(data = data,
+    cutpoint <- surv_cutpoint(data = data_filtered,
                               time = time_col, event = endpoint,
                               variables = variable,
                               minprop = 0.1)[["cutpoint"]][["cutpoint"]]
@@ -34,7 +34,7 @@ extract_cox_stats <- function(data, endpoint, variable, selected_quantile, .filt
     
     # validate provided quantile to be between 0 and 1
   } else if (is.numeric(selected_quantile) & selected_quantile > 0 & selected_quantile < 1) {
-    # determine threhsold based on provided quantile
+    # determine threhsold based on provided quantile (relative to entire dataset)
     cutpoint <- quantile(data[[variable]], selected_quantile)
     
   } else {
@@ -42,10 +42,17 @@ extract_cox_stats <- function(data, endpoint, variable, selected_quantile, .filt
   }
   
   cox_formula <- glue("Surv({endpoint}_years, {endpoint}) ~ {variable} > {cutpoint}") %>% as.formula()
-  cox_res <- coxph(cox_formula, data = data) %>%
+  
+  n_label = glue("{n} ({n_high} High vs. {n_low} Low)", 
+                 n = nrow(data_filtered),
+                 n_high = sum(data_filtered[[variable]] > cutpoint, na.rm = T),
+                 n_low = sum(data_filtered[[variable]] <= cutpoint, na.rm = T))
+  
+  cox_res <- coxph(cox_formula, data = data_filtered) %>%
     tidy(conf.int = TRUE, exponentiate = T) %>%
     # format output
     transmute(subgroup = filter_label,
+              n = n_label,
               variable = variable,
               endpoint = endpoint,
               threshold = cutpoint,
