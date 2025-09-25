@@ -1,12 +1,27 @@
 
 # Function to extract Cox proportional hazards statistics for a given variable, endpoint and threshold quantile
-extract_cox_stats <- function(data, endpoint, variable, selected_quantile) {
+extract_cox_stats <- function(data, endpoint, variable, selected_quantile, .filter = NULL) {
   time_col <- paste0(endpoint, "_years")
   
   # remove patients with missing endpoint information
   data = data %>%
     filter(!is.na(.data[[time_col]]),
            !is.na(.data[[time_col]]))
+  
+  # apply filter if provided
+  filter_label = ""
+  
+  if (!is.null(.filter)) {
+    data = data %>%
+      filter(!!rlang::parse_expr(.filter))
+    
+    # format filter label
+    filter_label = .filter %>%
+      str_replace("\\s*(==|%in%)\\s*", ": ") %>% 
+      str_replace("\\s*!=\\s*", ": not ") %>%
+      str_remove_all('(\\"|c\\(|\\))') %>%
+      str_remove_all("\\'")
+  }
   
   # estimate best cutpoint
   if(selected_quantile == "best") {
@@ -30,10 +45,11 @@ extract_cox_stats <- function(data, endpoint, variable, selected_quantile) {
   cox_res <- coxph(cox_formula, data = data) %>%
     tidy(conf.int = TRUE, exponentiate = T) %>%
     # format output
-    transmute(variable = variable,
+    transmute(subgroup = filter_label,
+              variable = variable,
               endpoint = endpoint,
               threshold = cutpoint,
-              quantile = selected_quantile,
+              quantile = round(selected_quantile, 2),
               HR = estimate,
               CI = glue("{round(conf.low, 2)} - {round(conf.high, 2)}"),
               p.value = p.value

@@ -98,23 +98,28 @@ source("R/extract_cox_stats.R")
 endpoint <- c("OS", "DSS", "RFS")
 variable <- c("MKI67_EXP", "PGR_EXP")
 quantiles <- list(0.1, 0.15, 0.25, 0.33, 0.5, 0.66, 0.75, 0.85, 0.9, "best")
+# null is for all patients
+subset <- list(NULL, 'SCMOD2 %in% c("ER+/HER2- Low Prolif", "ER+/HER2- High Prolif")', 'SCMOD2 == "HER2+"', 'SCMOD2 == "ER-/HER2-"')
 
 # grid of model parameters to test
 test_grid <- expand_grid(endpoint = endpoint,
                          variable = variable,
-                         selected_quantile = quantiles)
+                         selected_quantile = quantiles,
+                         .filter = subset)
 
 # specify x as data for creating a partial function
 map_function <- partial(extract_cox_stats, data = metadata.1)
+
 res <- pmap_dfr(test_grid, map_function) %>%
   ungroup() %>%
   # highlight best quantile for each variable/endpoint combination
-  mutate(best = ifelse(p.value == min(p.value), TRUE, FALSE), .by = c(variable, endpoint))
+  mutate(best = ifelse(p.value == min(p.value), TRUE, FALSE), .by = c(variable, endpoint)) %>%
+  # Manually adjust labels
+  mutate(subgroup = ifelse(subgroup == "", "All", subgroup) %>%
+           str_remove("^[^:]+: "))
 
 # plot thresholds results
 res %>%
-  # fill missing values for eventual vest quantiles to plot them as missing
-  complete(variable, endpoint, quantile) %>%
   # add pvalue label
   mutate(signif = case_when(
     p.value < 0.001 ~ "***",
@@ -124,10 +129,11 @@ res %>%
   ggplot(aes(y=as.character(quantile), x=endpoint, fill = HR)) +
   geom_tile() +
   geom_text(aes(label = signif)) +
-  facet_wrap(~variable) +
-  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, na.value = "grey90") +
+  facet_wrap(~subgroup + variable, scales = "free") +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1, na.value = "grey90") +
   scale_x_discrete(expand = c(0,0)) +
   scale_y_discrete(expand = c(0,0)) +
   ylab("Quantile") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(panel.grid = element_blank(),
+        panel.background = element_rect(fill = "grey90"))
